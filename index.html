@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORCWIZARD — INSERT COIN</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #00ff41;
+    --cyan: #00f5ff;
+    --yellow: #ffe600;
+    --pink: #ff2d78;
+    --bg: #000000;
+    --dim: #0a0a0a;
+    --grid: #0d1f0d;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  .pixel,
+  .title-main,
+  .title-sub,
+  .divider,
+  .pbox-label,
+  .score-bar,
+  .insert-coin,
+  .lives,
+  .project-tag,
+  .skill-name,
+  .hiscore-rank,
+  .stat-label,
+  .footer {
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  /* CRT scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,65,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,65,0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  canvas#stars {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 10;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+
+  .score-bar {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--yellow);
+    margin-bottom: 32px;
+    letter-spacing: 1px;
+  }
+
+  .title-wrap {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 24px;
+  }
+
+  .title-main {
+    font-size: clamp(20px, 5vw, 36px);
+    color: var(--green);
+    text-shadow:
+      0 0 10px var(--green),
+      0 0 30px rgba(0,255,65,0.4);
+    letter-spacing: 4px;
+    line-height: 1.5;
+  }
+
+  .title-sub {
+    font-size: clamp(9px, 2vw, 13px);
+    color: var(--cyan);
+    text-shadow: 0 0 8px var(--cyan);
+    letter-spacing: 6px;
+    margin-top: 12px;
+  }
+
+  .insert-coin {
+    font-size: 12px;
+    color: var(--yellow);
+    animation: blink 1s step-end infinite;
+    letter-spacing: 2px;
+    margin-top: 20px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .lives {
+    font-size: 10px;
+    color: var(--pink);
+    margin-top: 10px;
+    letter-spacing: 3px;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 32px 0;
+    color: var(--green);
+    opacity: 0.4;
+    font-size: 10px;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--green);
+    opacity: 0.3;
+  }
+
+  /* ── PIXEL BOX ── */
+  .pbox {
+    border: 2px solid var(--green);
+    padding: 28px;
+    margin-bottom: 28px;
+    position: relative;
+    background: rgba(0,255,65,0.02);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .pbox:hover {
+    background: rgba(0,255,65,0.05);
+    border-color: var(--cyan);
+  }
+  /* pixel corners */
+  .pbox::before, .pbox::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--bg);
+  }
+  .pbox::before { top: -4px; left: -4px; }
+  .pbox::after  { bottom: -4px; right: -4px; }
+
+  .pbox-corner-tr, .pbox-corner-bl {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--bg);
+  }
+  .pbox-corner-tr { top: -4px; right: -4px; }
+  .pbox-corner-bl { bottom: -4px; left: -4px; }
+
+  .pbox-label {
+    position: absolute;
+    top: -10px;
+    left: 16px;
+    background: var(--bg);
+    padding: 0 8px;
+    font-size: 9px;
+    color: var(--yellow);
+    letter-spacing: 2px;
+  }
+
+  /* ── STAT GRID ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .stat-item {
+    text-align: center;
+    padding: 16px 8px;
+    border: 1px solid rgba(0,255,65,0.2);
+  }
+
+  .stat-val {
+    font-size: clamp(18px, 4vw, 28px);
+    color: var(--cyan);
+    text-shadow: 0 0 12px var(--cyan);
+    display: block;
+    margin-bottom: 10px;
+    font-family: 'VT323', monospace;
+  }
+
+  .stat-label {
+    font-size: 8px;
+    color: rgba(0,255,65,0.6);
+    letter-spacing: 1px;
+    line-height: 1.8;
+  }
+
+  /* ── SKILL BAR ── */
+  .skill-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .skill-name {
+    min-width: 120px;
+    font-size: 8px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  .skill-track {
+    flex: 1;
+    height: 12px;
+    background: rgba(0,255,65,0.08);
+    border: 1px solid rgba(0,255,65,0.2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skill-fill {
+    height: 100%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    width: 0%;
+    transition: width 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    position: relative;
+  }
+
+  .skill-fill::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #fff;
+    opacity: 0.8;
+  }
+
+  .skill-pct {
+    min-width: 40px;
+    text-align: right;
+    font-size: 9px;
+    color: var(--yellow);
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+  }
+
+  /* ── PROJECT CARDS ── */
+  .project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .project-card {
+    border: 1px solid rgba(0,255,65,0.25);
+    padding: 20px 16px;
+    background: rgba(0,255,65,0.01);
+    position: relative;
+    transition: all 0.2s;
+  }
+  .project-card:hover {
+    border-color: var(--pink);
+    background: rgba(255,45,120,0.04);
+    transform: translateY(-2px);
+  }
+
+  .project-tag {
+    display: inline-block;
+    font-size: 7px;
+    padding: 3px 8px;
+    border: 1px solid var(--pink);
+    color: var(--pink);
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+
+  .project-name {
+    font-size: 10px;
+    color: var(--cyan);
+    margin-bottom: 12px;
+    line-height: 1.8;
+    letter-spacing: 1px;
+  }
+
+  .project-desc {
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    color: rgba(0,255,65,0.6);
+    line-height: 1.5;
+  }
+
+  .project-status {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 7px;
+    color: var(--yellow);
+    animation: blink 1.5s step-end infinite;
+  }
+
+  /* ── HIGH SCORE ── */
+  .hiscore-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,255,65,0.1);
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+  }
+  .hiscore-row:last-child { border-bottom: none; }
+
+  .hiscore-rank { color: var(--yellow); min-width: 40px; }
+  .hiscore-name { color: var(--cyan); flex: 1; padding: 0 12px; }
+  .hiscore-score { color: var(--green); text-shadow: 0 0 6px var(--green); }
+
+  /* ── FOOTER ── */
+  .footer {
+    text-align: center;
+    margin-top: 64px;
+    color: rgba(0,255,65,0.3);
+    font-size: 8px;
+    line-height: 2.5;
+    letter-spacing: 2px;
+  }
+
+  /* ── CURSOR GLOW ── */
+  #cursor-glow {
+    position: fixed;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,255,65,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    transition: opacity 0.3s;
+  }
+
+  /* ── GLITCH ── */
+  @keyframes glitch {
+    0%, 100% { clip-path: inset(0 0 98% 0); transform: translate(-2px, 0); }
+    20% { clip-path: inset(33% 0 55% 0); transform: translate(2px, 0); }
+    40% { clip-path: inset(70% 0 5% 0); transform: translate(-1px, 0); }
+    60% { clip-path: inset(15% 0 75% 0); transform: translate(1px, 0); }
+    80% { clip-path: inset(60% 0 20% 0); transform: translate(0, 0); }
+  }
+
+  .glitch-wrap { position: relative; display: inline-block; }
+
+  /* ── SCROLL FADE IN ── */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+<div id="cursor-glow"></div>
+
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="score-bar">
+      <span>1UP &nbsp; <span id="score-display">000000</span></span>
+      <span>HI-SCORE &nbsp; 999999</span>
+      <span>2UP &nbsp; 000000</span>
+    </div>
+
+    <div class="title-wrap">
+      <div class="glitch-wrap" data-text="ORCWIZARD">
+        <div class="title-main">ORCWIZARD</div>
+      </div>
+    </div>
+
+    <div class="title-sub">— PORTFOLIO v0.1 TEST BUILD —</div>
+    <div class="insert-coin">▶ INSERT COIN TO CONTINUE ◀</div>
+    <div class="lives">♥ ♥ ♥ &nbsp; PLAYER 1 READY</div>
+  </header>
+
+  <!-- DIVIDER -->
+  <div class="divider">SYSTEM STATUS</div>
+
+  <!-- STATS -->
+  <div class="pbox fade-in">
+    <span class="pbox-label">// STATS.EXE</span>
+    <div class="pbox-corner-tr"></div>
+    <div class="pbox-corner-bl"></div>
+    <div class="stat-grid">
+      <div class="stat-item">
+        <span class="stat-val" id="cnt-projects">00</span>
+        <span class="stat-label">PROJECTS<br>DEPLOYED</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="cnt-commits">0000</span>
+        <span class="stat-label">COMMITS<br>TOTAL</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="cnt-coffee">00</span>
+        <span class="stat-label">CUPS OF<br>COFFEE</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="cnt-bugs">???</span>
+        <span class="stat-label">BUGS<br>REMAINING</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SKILLS -->
+  <div class="divider">SKILL TREE</div>
+  <div class="pbox fade-in">
+    <span class="pbox-label">// SKILLS.DAT</span>
+    <div class="pbox-corner-tr"></div>
+    <div class="pbox-corner-bl"></div>
+
+    <div id="skills-container" style="margin-top: 8px;">
+      <!-- JS로 생성 -->
+    </div>
+  </div>
+
+  <!-- PROJECTS -->
+  <div class="divider">STAGE SELECT</div>
+  <div class="pbox fade-in">
+    <span class="pbox-label">// PROJECTS.LOG — github:darkdarkcocoa</span>
+    <div class="pbox-corner-tr"></div>
+    <div class="pbox-corner-bl"></div>
+    <div id="project-grid" class="project-grid">
+      <div style="text-align:center; padding: 32px; color: rgba(0,255,65,0.4); font-family:'VT323',monospace; font-size:20px; width:100%;">
+        LOADING STAGES...
+      </div>
+    </div>
+  </div>
+
+  <!-- HIGH SCORE -->
+  <div class="divider">HALL OF FAME</div>
+  <div class="pbox fade-in">
+    <span class="pbox-label">// HISCORE.DAT</span>
+    <div class="pbox-corner-tr"></div>
+    <div class="pbox-corner-bl"></div>
+    <div id="hiscore-table" style="margin-top: 8px;"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer fade-in">
+    <div>© 2025 SEOHA.DEV &nbsp;|&nbsp; ALL RIGHTS RESERVED</div>
+    <div>MADE WITH ♥ AND TOO MUCH CAFFEINE</div>
+    <div style="margin-top: 8px; animation: blink 2s step-end infinite;">
+      GAME OVER? &nbsp; NO. &nbsp; CONTINUE? &nbsp; YES.
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ── STAR FIELD ── */
+const canvas = document.getElementById('stars');
+const ctx = canvas.getContext('2d');
+let stars = [];
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function initStars() {
+  stars = Array.from({ length: 120 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    size: Math.random() * 1.5 + 0.3,
+    speed: Math.random() * 0.3 + 0.05,
+    opacity: Math.random() * 0.6 + 0.1
+  }));
+}
+
+function drawStars() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,255,65,${s.opacity})`;
+    ctx.fill();
+    s.y += s.speed;
+    if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
+  });
+  requestAnimationFrame(drawStars);
+}
+
+resizeCanvas();
+initStars();
+drawStars();
+window.addEventListener('resize', () => { resizeCanvas(); initStars(); });
+
+/* ── CURSOR GLOW ── */
+const glow = document.getElementById('cursor-glow');
+document.addEventListener('mousemove', e => {
+  glow.style.left = e.clientX + 'px';
+  glow.style.top = e.clientY + 'px';
+});
+
+/* ── GITHUB PROJECTS ── */
+async function loadGithubRepos() {
+  const grid = document.getElementById('project-grid');
+  try {
+    const res = await fetch('https://api.github.com/users/darkdarkcocoa/repos?sort=updated&per_page=12');
+    if (!res.ok) throw new Error('fetch failed');
+    const repos = await res.json();
+
+    const filtered = repos.filter(r => !r.fork);
+    if (filtered.length === 0) {
+      grid.innerHTML = '<div style="color:rgba(0,255,65,0.4);padding:32px;width:100%;text-align:center;font-size:18px;">NO STAGES FOUND</div>';
+      return;
+    }
+
+    const langColors = {
+      Python: '#00f5ff', JavaScript: '#ffe600', TypeScript: '#ffe600',
+      HTML: '#ff2d78', CSS: '#c77dff', Shell: '#00ff41', default: '#888'
+    };
+
+    grid.innerHTML = filtered.map(r => {
+      const lang = r.language || 'N/A';
+      const color = langColors[lang] || langColors.default;
+      const desc = r.description || 'No description yet.';
+      const stars = r.stargazers_count;
+      const updated = new Date(r.updated_at).toLocaleDateString('ko-KR', { year:'2-digit', month:'2-digit', day:'2-digit' });
+
+      return `
+        <a class="project-card" href="${r.html_url}" target="_blank" rel="noopener" style="text-decoration:none; display:block;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div class="project-tag" style="border-color:${color}; color:${color};">${lang}</div>
+            ${stars > 0 ? `<span style="font-size:14px; color:var(--yellow); font-family:'VT323',monospace;">⭐ ${stars}</span>` : ''}
+          </div>
+          <div class="project-name" style="color:var(--cyan);">${r.name.toUpperCase()}</div>
+          <div class="project-desc">${desc}</div>
+          <div style="margin-top:12px; font-size:14px; color:rgba(0,255,65,0.35); font-family:'VT323',monospace;">UPDATED ${updated}</div>
+        </a>`;
+    }).join('');
+
+  } catch(e) {
+    grid.innerHTML = '<div style="color:var(--pink);padding:32px;width:100%;text-align:center;font-size:18px;">⚠ FAILED TO LOAD — CHECK CONNECTION</div>';
+  }
+}
+
+loadGithubRepos();
+
+/* ── SCROLL SCORE ── */
+let score = 0;
+const scoreEl = document.getElementById('score-display');
+
+function updateScrollScore() {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = max > 0 ? Math.min(window.scrollY / max, 1) : 0;
+  score = Math.floor(progress * 999999);
+  scoreEl.textContent = String(score).padStart(6, '0');
+}
+
+window.addEventListener('scroll', updateScrollScore, { passive: true });
+
+/* ── SKILLS ── */
+const skills = [
+  { name: 'PYTHON',     pct: 85, color: '#00f5ff' },
+  { name: 'AI / ML',    pct: 80, color: '#00ff41' },
+  { name: 'JAVASCRIPT', pct: 72, color: '#ffe600' },
+  { name: 'SECURITY',   pct: 65, color: '#ff2d78' },
+  { name: 'MUSIC PROD', pct: 70, color: '#c77dff' },
+];
+
+const skillContainer = document.getElementById('skills-container');
+skills.forEach(s => {
+  skillContainer.innerHTML += `
+    <div class="skill-row">
+      <span class="skill-name">${s.name}</span>
+      <div class="skill-track">
+        <div class="skill-fill" data-pct="${s.pct}" style="background:${s.color}; box-shadow: 0 0 6px ${s.color};"></div>
+      </div>
+      <span class="skill-pct">${s.pct}%</span>
+    </div>`;
+});
+
+/* ── HIGH SCORE TABLE ── */
+const hiscores = [
+  { rank: '1ST', name: 'SNH', score: '998,500' },
+  { rank: '2ND', name: 'AI-', score: '887,200' },
+  { rank: '3RD', name: 'DEV', score: '762,100' },
+  { rank: '4TH', name: 'BUG', score: '654,300' },
+  { rank: '5TH', name: 'YOU', score: '???', yellow: true },
+];
+
+const hiscoreTable = document.getElementById('hiscore-table');
+hiscores.forEach(h => {
+  hiscoreTable.innerHTML += `
+    <div class="hiscore-row">
+      <span class="hiscore-rank">${h.rank}</span>
+      <span class="hiscore-name">${h.name}</span>
+      <span class="hiscore-score" style="${h.yellow ? 'color:var(--yellow);animation:blink 1s step-end infinite' : ''}">${h.score}</span>
+    </div>`;
+});
+
+/* ── COUNTERS ── */
+function countUp(el, target, duration, pad) {
+  let start = 0;
+  const step = target / (duration / 16);
+  const timer = setInterval(() => {
+    start = Math.min(start + step, target);
+    el.textContent = String(Math.floor(start)).padStart(pad, '0');
+    if (start >= target) clearInterval(timer);
+  }, 16);
+}
+setTimeout(() => {
+  countUp(document.getElementById('cnt-projects'), 12, 1200, 2);
+  countUp(document.getElementById('cnt-commits'), 1337, 1500, 4);
+  countUp(document.getElementById('cnt-coffee'), 99, 1000, 2);
+}, 500);
+
+/* ── SCROLL FADE IN ── */
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      /* animate skill bars when section appears */
+      e.target.querySelectorAll('.skill-fill').forEach(bar => {
+        bar.style.width = bar.dataset.pct + '%';
+      });
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
